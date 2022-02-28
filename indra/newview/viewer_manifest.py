@@ -1806,7 +1806,14 @@ class LinuxManifest(ViewerManifest):
     build_data_json_platform = 'lnx'
 
     def construct(self):
+        # <FS:ND> HACK! Force parent to always copy XML/... even when not having configured with --package.
+        # This allows build result to be started without always having to --package and thus waiting for the length tar ball generation --package incurs
+        savedActions = self.args['actions']
+        self.args["actions"].append("package")
+
         super(LinuxManifest, self).construct()
+
+        self.args["actions"] = savedActions # Restore old actions
 
         pkgdir = os.path.join(self.args['build'], os.pardir, 'packages')
         relpkgdir = os.path.join(pkgdir, "lib", "release")
@@ -1830,8 +1837,9 @@ class LinuxManifest(ViewerManifest):
             self.path("install.sh")
 
         with self.prefix(dst="bin"):
+            self.path( os.path.join(os.pardir,'build_data.json'), "build_data.json" )
             self.path("firestorm-bin","do-not-directly-run-firestorm-bin")
-            #self.path("../linux_crash_logger/linux-crash-logger","linux-crash-logger.bin")
+            self.path("../linux_crash_logger/linux-crash-logger","linux-crash-logger.bin")
             self.path2basename("../llplugin/slplugin", "SLPlugin")
             #this copies over the python wrapper script, associated utilities and required libraries, see SL-321, SL-322 and SL-323
             # <FS:Ansariel> Remove VMP
@@ -1852,24 +1860,8 @@ class LinuxManifest(ViewerManifest):
 
         # plugins
         with self.prefix(src=os.path.join(self.args['build'], os.pardir, 'media_plugins'), dst="bin/llplugin"):
-            #self.path("gstreamer010/libmedia_plugin_gstreamer010.so", "libmedia_plugin_gstreamer.so")
-            self.path2basename("libvlc", "libmedia_plugin_libvlc.so")
+            self.path("gstreamer10/libmedia_plugin_gstreamer10.so", "libmedia_plugin_gstreamer.so")
             self.path("cef/libmedia_plugin_cef.so", "libmedia_plugin_cef.so" )
-
-
-        with self.prefix(src=os.path.join(pkgdir, 'lib', 'vlc', 'plugins'), dst="bin/llplugin/vlc/plugins"):
-            self.path( "plugins.dat" )
-            self.path( "*/*.so" )
-
-        with self.prefix(src=os.path.join(pkgdir, 'lib' ), dst="lib"):
-            self.path( "libvlc*.so*" )
-
-        with self.prefix(src=os.path.join(pkgdir, 'lib', 'vlc', 'plugins'), dst="bin/llplugin/vlc/plugins"):
-            self.path( "plugins.dat" )
-            self.path( "*/*.so" )
-
-        with self.prefix(src=os.path.join(pkgdir, 'lib' ), dst="lib"):
-            self.path( "libvlc*.so*" )
 
         # CEF files 
         with self.prefix(src=os.path.join(pkgdir, 'lib', 'release'), dst="lib"):
@@ -1884,11 +1876,9 @@ class LinuxManifest(ViewerManifest):
         with self.prefix(src=os.path.join(pkgdir, 'bin', 'release'), dst="bin"):
             self.path( "chrome-sandbox" )
             self.path( "dullahan_host" )
-            self.fs_try_path( "natives_blob.bin" )
             self.path( "snapshot_blob.bin" )
             self.path( "v8_context_snapshot.bin" )
         with self.prefix(src=os.path.join(pkgdir, 'bin', 'release'), dst="lib"):
-            self.fs_try_path( "natives_blob.bin" )
             self.path( "snapshot_blob.bin" )
             self.path( "v8_context_snapshot.bin" )
 
@@ -1967,8 +1957,7 @@ class LinuxManifest(ViewerManifest):
         with self.prefix(src=pkgdir, dst="bin"):
             self.path("ca-bundle.crt")
 
-        if self.is_packaging_viewer():
-          with self.prefix(src=os.path.join(pkgdir, 'lib', 'release'), dst="lib"):
+        with self.prefix(src=os.path.join(pkgdir, 'lib', 'release'), dst="lib"):
             self.path("libapr-1.so*")
             self.path("libaprutil-1.so*")
             #self.path("libboost_context-mt.so*")
@@ -2002,7 +1991,7 @@ class LinuxManifest(ViewerManifest):
             self.path("libopenal.so", "libopenal.so.1") # Install as versioned file in case it's missing from the 3p- and won't get copied below
             self.path("libopenal.so*")
             #self.path("libnotify.so.1.1.2", "libnotify.so.1") # LO - uncomment when testing libnotify(growl) on linux
-            self.path("libpangox-1.0.so*")
+            #self.path("libpangox-1.0.so*")
             # KLUDGE: As of 2012-04-11, the 'fontconfig' package installs
             # libfontconfig.so.1.4.4, along with symlinks libfontconfig.so.1
             # and libfontconfig.so. Before we added support for library-file
@@ -2020,24 +2009,24 @@ class LinuxManifest(ViewerManifest):
             # particular wildcard specification gets us exactly what the
             # previous call did, without having to explicitly state the
             # version number.
-            self.path("libfontconfig.so.*.*")
+            #self.path("libfontconfig.so.*.*")
 
             self.fs_try_path("libjemalloc.so*")
 
-          # Vivox runtimes
-          # Currentelly, the 32-bit ones will work with a 64-bit client.
-          with self.prefix(src=os.path.join(pkgdir, 'lib', 'release'), dst="bin"):
-                  self.path("SLVoice")
-                  self.path("win32")
-                  self.path("win64")
+            # Vivox runtimes
+            # Currentelly, the 32-bit ones will work with a 64-bit client.
+        with self.prefix(src=os.path.join(pkgdir, 'lib', 'release'), dst="bin"):
+            self.path("SLVoice")
+            self.path("win32")
+            self.path("win64")
 
-          with self.prefix(src=os.path.join(pkgdir, 'lib', 'release'), dst="lib"):
-                  self.path("libortp.so")
-                  self.path("libsndfile.so.1")
-                  # <FS:TS> Vivox wants this library even if it's present already in the viewer
-                  self.path("libvivoxoal.so.1")
-                  self.path("libvivoxsdk.so")
-                  self.path("libvivoxplatform.so")
+        with self.prefix(src=os.path.join(pkgdir, 'lib', 'release'), dst="lib"):
+            self.path("libortp.so")
+            self.path("libsndfile.so.1")
+            # <FS:TS> Vivox wants this library even if it's present already in the viewer
+            self.path("libvivoxoal.so.1")
+            self.path("libvivoxsdk.so")
+            self.path("libvivoxplatform.so")
 
 
     def package_finish(self):
@@ -2046,6 +2035,7 @@ class LinuxManifest(ViewerManifest):
         installer_name = "_".join(installer_name_components)
         #installer_name = self.installer_base_name()
 
+        self.fs_save_breakpad_symbols("linux")
         self.fs_delete_linux_symbols() # <FS:ND/> Delete old syms
         self.strip_binaries()
         self.fs_save_linux_symbols() # <FS:ND/> Package symbols, add debug link
@@ -2063,6 +2053,10 @@ class LinuxManifest(ViewerManifest):
         # name in the tarfile
         realname = self.get_dst_prefix()
         tempname = self.build_path_of(installer_name)
+        self.run_command([
+            self.args["source"] + "/installers/linux/appimage.sh", self.args["build"],
+            self.args["build"] + "/Firestorm-x86_64.AppImage", self.args["build"] + "/" + installer_name + ".AppImage"
+        ] )
         self.run_command(["mv", realname, tempname])
         try:
             # only create tarball if it's a release build.
@@ -2087,7 +2081,7 @@ class LinuxManifest(ViewerManifest):
                 [os.path.join(self.get_dst_prefix(), dir) for dir in ('bin', 'lib')] +
                 # <FS:Ansariel> Remove VMP
                 # ['-type', 'f', '!', '-name', '*.py',
-                ['-type', 'f', "!", "-name", "*.dat", "!", "-name", "*.pak", "!", "-name", "*.bin",
+                ['-type', 'f', "!", "-name", "*.dat", "!", "-name", "*.pak", "!", "-name", "*.bin", "!", "-name", "*.lib", "!", "-name", "*.pdb",
                 # </FS:Ansariel> Remove VMP
                  '!', '-name', 'update_install', '-exec', 'strip', '-S', '{}', ';'])
 
@@ -2189,9 +2183,8 @@ class Linux_x86_64_Manifest(LinuxManifest):
         relpkgdir = os.path.join(pkgdir, "lib", "release")
         debpkgdir = os.path.join(pkgdir, "lib", "debug")
 
-        if self.is_packaging_viewer():
-          with self.prefix(src=os.path.join(pkgdir, 'lib', 'release'), dst="lib"):
-            self.path("libffi*.so*")
+        with self.prefix(src=os.path.join(pkgdir, 'lib', 'release'), dst="lib"):
+            #self.path("libffi*.so*")
             # vivox 32-bit hack.
             # one has to extract libopenal.so from the 32-bit openal package, or official LL viewer, and rename it to libopenal32.so
             # and place it in the prebuilt lib/release directory
